@@ -53,7 +53,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
     private val awsConfig: AWSConfiguration by lazy { AWSConfiguration(context) }
 
     private val awsClient: AWSMobileClient by lazy {
-        AWSMobileClient.getInstance().initializes(context, awsConfig) {
+        AWSMobileClient.getInstance().initialize(context, awsConfig) {
             onResult {
                 Log.d(TAG, "${it.userState}")
             }
@@ -71,7 +71,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                 result.success(token)
             }
             ON_MESSAGE -> {
-                val data = call.argument<Map<String, String>>(DATA) // Map<String, String> RemoteMessage.getData()
+                val data = call.argumentOrNull<Map<String, String>>(DATA) // Map<String, String> RemoteMessage.getData()
                 val notification = call.argumentOrNull<Map<String, Any>>(NOTIFICATION) // RemoteMessage.Notification RemoteMessage.getNotification
 
                 val pushResult = pinpoint.notificationClient.handleCampaignPush(NotificationDetails.builder()
@@ -95,7 +95,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                         data?.let { broadcast(HashMap(data)) }
                     }
                 }
-                result.success(null)
+                result.success()
             }
             INITIALIZE -> {
                 FirebaseInstanceId.getInstance().instanceId.addOnCompleteListener { task ->
@@ -107,7 +107,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                         Log.w(TAG, "getInstanceId failed", task.exception)
                     }
                 }
-                result.success(null)
+                result.success()
             }
             else -> {
                 result.notImplemented()
@@ -115,6 +115,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
         }
     }
 
+    // Lazy: private fun broadcast(dataMap: HashMap<String, String>, from: String? = null) {
     private fun broadcast(dataMap: HashMap<String, String>) {
         LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_PUSH_NOTIFICATION).apply {
             putExtra(NotificationClient.INTENT_SNS_NOTIFICATION_DATA, dataMap)
@@ -131,6 +132,13 @@ class FlutterAwsPlugin(private val registrar: Registrar,
 
 fun <T> MethodCall.argumentOrNull(key: String): T? = try { argument(key) } catch (e: Throwable) { null }
 fun <T> MethodCall.argumentsOrNull(): T? = arguments() as? T?
+//fun <T> MethodCall.argument(key: String): T? = try { argument(key) } catch (e: Throwable) { null }
+//fun <T> MethodCall.arguments(): T? = arguments() as? T?
+//@JvmOverloads
+//fun Result.success(result: Any? = null): Unit = success(result)
+fun Result.success(): Unit = success(null) // avoid shadow
+@JvmOverloads // let's shadow for now
+fun Result.error(code: String, message: String? = null, details: Any? = null): Unit = error(code, message, details)
 
 val Any.TAG: String
     get() {
@@ -139,10 +147,10 @@ val Any.TAG: String
         return if (tag.length <= max) tag else tag.substring(0, max)
     }
 
-fun AWSMobileClient.initializes(context: Context, config: AWSConfiguration, init: Callbacks<UserStateDetails>.() -> Unit): AWSMobileClient {
-  val callbacks = Callbacks<UserStateDetails>()
-  callbacks.init()
-  this.initialize(context, config, callbacks)
+fun AWSMobileClient.initialize(context: Context, config: AWSConfiguration, init: Callbacks<UserStateDetails>.() -> Unit): AWSMobileClient {
+  initialize(context, config, Callbacks<UserStateDetails>().apply {
+      init()
+  })
   return this
 }
 
