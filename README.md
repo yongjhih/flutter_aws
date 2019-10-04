@@ -1,14 +1,73 @@
 # flutter_aws
 
-aws
+## Installation
 
-## Getting Started
+pubspec.yaml
+```yaml
+dependencies:
+  # should have firebase_messaging: ^5.1.6 dep already
+  flutter_aws:
+    git:
+      url: https://github.com/yongjhih/flutter_aws.git
+      ref: a8f82de84c2c3519a752dce5b3379f7fa6d820b6
+```
 
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/developing-packages/),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
+## Integration with Pinpoint
 
-For help getting started with Flutter, view our 
-[online documentation](https://flutter.dev/docs), which offers tutorials, 
-samples, guidance on mobile development, and a full API reference.
+1. Setup FCM: android/app/src/main/google-services.json from Firebase
+2. Setup android/app/src/main/res/raw/awsconfiguration.json with amplify cli (push, analytics)
+3. Add a receiver into AndroidManifest.xml:
+
+```xml
+        <receiver android:name="com.amazonaws.mobileconnectors.pinpoint.targeting.notification.PinpointNotificationReceiver"
+            android:exported="false" >
+            <intent-filter>
+                <action android:name="com.amazonaws.intent.fcm.NOTIFICATION_OPEN" />
+            </intent-filter>
+        </receiver>
+```
+
+build.gradle:
+
+```
+dependencies {
+    implementation 'com.amazonaws:aws-android-sdk-pinpoint:2.15.+'
+    implementation ('com.amazonaws:aws-android-sdk-mobile-client:2.15.+@aar') { transitive = true }
+}
+```
+
+4. Initalization when app started
+
+```dart
+  @override
+  void initState() {
+    super.initState();
+
+    FlutterAws.initialize();
+    final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
+    _firebaseMessaging.configure(
+      onMessage: (Map<String, dynamic> message) async {
+        Fimber.d("firebaseMessaging: onMessage: $message");
+        await FlutterAws.onMessage(message);
+      },
+      onLaunch: (Map<String, dynamic> message) async {
+        Fimber.d("firebaseMessaging: onLaunch: $message");
+      },
+      onResume: (Map<String, dynamic> message) async {
+        Fimber.d("firebaseMessaging: onResume: $message");
+      },
+    );
+    _firebaseMessaging.requestNotificationPermissions(
+        const IosNotificationSettings(sound: true, badge: true, alert: true));
+    _firebaseMessaging.onIosSettingsRegistered.listen((IosNotificationSettings settings) {
+      Fimber.d("firebaseMessaging: Settings registered: $settings");
+    });
+    _firebaseMessaging.onTokenRefresh.listen((String token) {
+      Fimber.d("firebaseMessaging: Settings registered: $token");
+      FlutterAws.onNewToken(token);
+    });
+    _firebaseMessaging.getToken().then((String token) {
+      Fimber.d("firebaseMessaging getToken: $token");
+    });
+  }
+```
