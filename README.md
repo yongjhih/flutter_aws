@@ -9,7 +9,6 @@ dependencies:
   flutter_aws:
     git:
       url: https://github.com/yongjhih/flutter_aws.git
-      ref: 7d686f58955064b6458f0166662fe6d526b7e008
 ```
 
 ## Integration with Pinpoint
