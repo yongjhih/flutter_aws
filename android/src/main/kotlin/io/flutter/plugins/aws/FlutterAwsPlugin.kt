@@ -66,13 +66,17 @@ class FlutterAwsPlugin(private val registrar: Registrar,
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
             ON_NEW_TOKEN -> {
+                Log.d(TAG, "onNewToken")
                 val token = call.argumentsOrNull<String>()
                 token?.let { pinpoint.notificationClient.registerDeviceToken(token) }
+                Log.d(TAG, "onNewToken: registerDeviceToken: $token")
                 result.success(token)
             }
             ON_MESSAGE -> {
                 val data = call.argumentOrNull<Map<String, String>>(DATA) // Map<String, String> RemoteMessage.getData()
                 val notification = call.argumentOrNull<Map<String, Any>>(NOTIFICATION) // RemoteMessage.Notification RemoteMessage.getNotification
+                Log.d(TAG, "onMessage: data: $data")
+                Log.d(TAG, "onMessage: notification: $notification")
 
                 val pushResult = pinpoint.notificationClient.handleCampaignPush(NotificationDetails.builder()
                         //.from(remoteMessage.getFrom()) // TODO
@@ -89,15 +93,20 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                      * for the demo, we will broadcast the notification to let the main
                      * activity display it in a dialog.
                      */
+                    Log.d(TAG, "Pinpoint Handled")
                     if (NotificationClient.CampaignPushResult.APP_IN_FOREGROUND == pushResult) {
+                        Log.d(TAG, "Pinpoint Handled in foreground")
                         /* Create a message that will display the raw data of the campaign push in a dialog. */
                         // from?.let { broadcast(from, HashMap(data)) } ?? // TODO
                         data?.let { broadcast(HashMap(data)) }
                     }
+                } else {
+                    Log.d(TAG, "Pinpoint not handled")
                 }
                 result.success()
             }
             INITIALIZE -> {
+                Log.d(TAG, "Initializing and registering push notifications token")
                 FirebaseInstanceId.getInstance().instanceId.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         val token = task.result?.token
@@ -117,12 +126,14 @@ class FlutterAwsPlugin(private val registrar: Registrar,
 
     // Lazy: private fun broadcast(dataMap: HashMap<String, String>, from: String? = null) {
     private fun broadcast(dataMap: HashMap<String, String>) {
+        Log.d(TAG, "Pinpoint broadcaset")
         LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_PUSH_NOTIFICATION).apply {
             putExtra(NotificationClient.INTENT_SNS_NOTIFICATION_DATA, dataMap)
         })
     }
 
     private fun broadcast(from: String, dataMap: HashMap<String, String>) {
+        Log.d(TAG, "Pinpoint broadcaset")
         LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_PUSH_NOTIFICATION).apply {
             putExtra(NotificationClient.INTENT_SNS_NOTIFICATION_FROM, from)
             putExtra(NotificationClient.INTENT_SNS_NOTIFICATION_DATA, dataMap)

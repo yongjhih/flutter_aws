@@ -64,6 +64,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     api 'com.google.firebase:firebase-messaging:20.0.0'
     implementation 'com.google.firebase:firebase-common:16.1.0'
+    api 'com.amazonaws:aws-android-sdk-pinpoint:2.15.+'
+    api ('com.amazonaws:aws-android-sdk-mobile-client:2.15.+@aar') { transitive = true }
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test:runner:1.1.1'
