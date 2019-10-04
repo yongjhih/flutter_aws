@@ -1,9 +1,8 @@
 name: flutter_aws
-description: aws
+description: Amazon SDK for flutter
 version: 0.0.1
-author:
-homepage:
-
+author: Andrew Chen <yongjhih@gmail.com>
+homepage: https://github.com/yongjhih/flutter_aws
 environment:
   sdk: ">=2.1.0 <3.0.0"
 
