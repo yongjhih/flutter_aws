@@ -9,7 +9,7 @@ dependencies:
   flutter_aws:
     git:
       url: https://github.com/yongjhih/flutter_aws.git
-      ref: a8f82de84c2c3519a752dce5b3379f7fa6d820b6
+      ref: 7d686f58955064b6458f0166662fe6d526b7e008
 ```
 
 ## Integration with Pinpoint
@@ -43,12 +43,12 @@ dependencies {
   void initState() {
     super.initState();
 
-    FlutterAws.initialize();
+    Aws.initialize();
     final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
     _firebaseMessaging.configure(
       onMessage: (Map<String, dynamic> message) async {
         Fimber.d("firebaseMessaging: onMessage: $message");
-        await FlutterAws.onMessage(message);
+        await Aws.onMessage(message);
       },
       onLaunch: (Map<String, dynamic> message) async {
         Fimber.d("firebaseMessaging: onLaunch: $message");
@@ -64,7 +64,7 @@ dependencies {
     });
     _firebaseMessaging.onTokenRefresh.listen((String token) {
       Fimber.d("firebaseMessaging: Settings registered: $token");
-      FlutterAws.onNewToken(token);
+      Aws.onNewToken(token);
     });
     _firebaseMessaging.getToken().then((String token) {
       Fimber.d("firebaseMessaging getToken: $token");
