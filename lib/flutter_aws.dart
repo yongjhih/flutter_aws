@@ -3,9 +3,11 @@ import 'dart:collection';
 
 import 'package:flutter/services.dart';
 
-class FlutterAws {
+class Aws {
   static const MethodChannel _channel =
       const MethodChannel('flutter_aws');
+
+  static Future<String> get endpointId async => await _channel.invokeMethod('endpointId');
 
   static Future<void> onMessage(Map<String, Object> message) async {
     await _channel.invokeMethod('onMessage', message);

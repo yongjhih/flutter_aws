@@ -21,7 +21,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> init() async {
-    await FlutterAws.initialize();
+    await Aws.initialize();
 
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling

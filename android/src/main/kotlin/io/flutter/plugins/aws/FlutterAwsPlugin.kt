@@ -40,6 +40,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
         const val DATA = "data"
         const val NOTIFICATION = "notification"
         const val ON_MESSAGE = "onMessage"
+        const val ENDPOINT_ID = "endpointId"
         const val INITIALIZE = "initialize"
     }
 
@@ -65,6 +66,10 @@ class FlutterAwsPlugin(private val registrar: Registrar,
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
+            ENDPOINT_ID -> {
+                Log.d(TAG, "endpointId")
+                result.success(pinpoint.targetingClient.currentEndpoint().endpointId)
+            }
             ON_NEW_TOKEN -> {
                 Log.d(TAG, "onNewToken")
                 val token = call.argumentsOrNull<String>()
@@ -145,10 +150,9 @@ fun <T> MethodCall.argumentOrNull(key: String): T? = try { argument(key) } catch
 fun <T> MethodCall.argumentsOrNull(): T? = arguments() as? T?
 //fun <T> MethodCall.argument(key: String): T? = try { argument(key) } catch (e: Throwable) { null }
 //fun <T> MethodCall.arguments(): T? = arguments() as? T?
-//@JvmOverloads
 //fun Result.success(result: Any? = null): Unit = success(result)
 fun Result.success(): Unit = success(null) // avoid shadow
-@JvmOverloads // let's shadow for now
+// let's shadow for now
 fun Result.error(code: String, message: String? = null, details: Any? = null): Unit = error(code, message, details)
 
 val Any.TAG: String
