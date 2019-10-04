@@ -56,9 +56,10 @@ class FlutterAwsPlugin(private val registrar: Registrar,
     private val awsClient: AWSMobileClient by lazy {
         AWSMobileClient.getInstance().initialize(context, awsConfig) {
             onResult {
-                Log.d(TAG, "${it.userState}")
+                Log.d(TAG, "initialized: ${it.userState}")
             }
             onError { e ->
+                Log.e(TAG, "initialized: error")
                 e.printStackTrace()
             }
         }
@@ -68,7 +69,9 @@ class FlutterAwsPlugin(private val registrar: Registrar,
         when (call.method) {
             ENDPOINT_ID -> {
                 Log.d(TAG, "endpointId")
-                result.success(pinpoint.targetingClient.currentEndpoint().endpointId)
+                val endpointId = pinpoint.targetingClient.currentEndpoint().endpointId
+                Log.d(TAG, "endpointId: $endpointId")
+                result.success(endpointId)
             }
             ON_NEW_TOKEN -> {
                 Log.d(TAG, "onNewToken")
