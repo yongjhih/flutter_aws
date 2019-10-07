@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry.Registrar
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import android.content.Intent
+import com.google.android.gms.tasks.Task
 
 
 /**
@@ -68,17 +69,15 @@ class FlutterAwsPlugin(private val registrar: Registrar,
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
             ENDPOINT_ID -> {
-                Log.d(TAG, "endpointId")
-                val endpointId = pinpoint.targetingClient.currentEndpoint().endpointId
-                Log.d(TAG, "endpointId: $endpointId")
-                result.success(endpointId)
+                result.call {
+                    pinpoint.targetingClient.currentEndpoint().endpointId
+                }
             }
             ON_NEW_TOKEN -> {
                 Log.d(TAG, "onNewToken")
-                val token = call.argumentsOrNull<String>()
-                token?.let { pinpoint.notificationClient.registerDeviceToken(token) }
-                Log.d(TAG, "onNewToken: registerDeviceToken: $token")
-                result.success(token)
+                result.call(call.argumentsOrNull<String>()) {
+                    pinpoint.notificationClient.registerDeviceToken(it)
+                }
             }
             ON_MESSAGE -> {
                 val data = call.argumentOrNull<Map<String, String>>(DATA) // Map<String, String> RemoteMessage.getData()
@@ -86,45 +85,43 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                 Log.d(TAG, "onMessage: data: $data")
                 Log.d(TAG, "onMessage: notification: $notification")
 
-                val pushResult = pinpoint.notificationClient.handleCampaignPush(NotificationDetails.builder()
-                        //.from(remoteMessage.getFrom()) // TODO
-                        .mapData(data)
-                        .intentAction(NotificationClient.FCM_INTENT_ACTION)
-                        .build())
+                result.complete(data, notification) { data, notification ->
+                    val pushResult = pinpoint.notificationClient.handleCampaignPush(NotificationDetails.builder()
+                            //.from(remoteMessage.getFrom()) // TODO
+                            .mapData(data)
+                            .intentAction(NotificationClient.FCM_INTENT_ACTION)
+                            .build())
 
-                if (NotificationClient.CampaignPushResult.NOT_HANDLED != pushResult) {
-                    /**
-                     * The push message was due to a Pinpoint campaign.
-                     * If the app was in the background, a local notification was added
-                     * in the notification center. If the app was in the foreground, an
-                     * event was recorded indicating the app was in the foreground,
-                     * for the demo, we will broadcast the notification to let the main
-                     * activity display it in a dialog.
-                     */
-                    Log.d(TAG, "Pinpoint Handled")
-                    if (NotificationClient.CampaignPushResult.APP_IN_FOREGROUND == pushResult) {
-                        Log.d(TAG, "Pinpoint Handled in foreground")
-                        /* Create a message that will display the raw data of the campaign push in a dialog. */
-                        // from?.let { broadcast(from, HashMap(data)) } ?? // TODO
-                        data?.let { broadcast(HashMap(data)) }
+                    if (NotificationClient.CampaignPushResult.NOT_HANDLED != pushResult) {
+                        /**
+                         * The push message was due to a Pinpoint campaign.
+                         * If the app was in the background, a local notification was added
+                         * in the notification center. If the app was in the foreground, an
+                         * event was recorded indicating the app was in the foreground,
+                         * for the demo, we will broadcast the notification to let the main
+                         * activity display it in a dialog.
+                         */
+                        Log.d(TAG, "Pinpoint Handled")
+                        if (NotificationClient.CampaignPushResult.APP_IN_FOREGROUND == pushResult) {
+                            Log.d(TAG, "Pinpoint Handled in foreground")
+                            /* Create a message that will display the raw data of the campaign push in a dialog. */
+                            // from?.let { broadcast(from, HashMap(data)) } ?? // TODO
+                            broadcast(HashMap(data))
+                        }
+                    } else {
+                        Log.d(TAG, "Pinpoint not handled")
                     }
-                } else {
-                    Log.d(TAG, "Pinpoint not handled")
                 }
-                result.success()
             }
             INITIALIZE -> {
                 Log.d(TAG, "Initializing and registering push notifications token")
                 FirebaseInstanceId.getInstance().instanceId.addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        val token = task.result?.token
-                        Log.d(TAG, "Registering push notifications token: ${token}")
-                        token?.let { pinpoint.notificationClient.registerDeviceToken(token) }
-                    } else {
-                        Log.w(TAG, "getInstanceId failed", task.exception)
+                    result.callTask(task) { instanceId ->
+                        Log.d(TAG, "Registering push notifications token: ${instanceId.token}")
+                        pinpoint.notificationClient.registerDeviceToken(instanceId.token)
+                        instanceId.token
                     }
                 }
-                result.success()
             }
             else -> {
                 result.notImplemented()
@@ -155,8 +152,8 @@ fun <T> MethodCall.argumentsOrNull(): T? = arguments() as? T?
 //fun <T> MethodCall.arguments(): T? = arguments() as? T?
 //fun Result.success(result: Any? = null): Unit = success(result)
 fun Result.success(): Unit = success(null) // avoid shadow
-// let's shadow for now
-fun Result.error(code: String, message: String? = null, details: Any? = null): Unit = error(code, message, details)
+fun Result.errors(code: String, message: String? = null, details: Any? = null): Unit = error(code, message, details)
+fun Result.error(e: Throwable): Unit = errors(e.cause.toString(), e.message, e.stackTrace)
 
 val Any.TAG: String
     get() {
@@ -173,22 +170,90 @@ fun AWSMobileClient.initialize(context: Context, config: AWSConfiguration, init:
 }
 
 class Callbacks<T> : com.amazonaws.mobile.client.Callback<T> {
-  var onResultFunc: (T) -> Unit = {}
-  var onErrorFunc: (Throwable) -> Unit = {}
+    var onResultFunc: (T) -> Unit = {}
+    var onErrorFunc: (Throwable) -> Unit = {}
 
-  override fun onResult(result: T) {
-    onResultFunc(result)
-  }
+    override fun onResult(result: T) {
+        onResultFunc(result)
+    }
 
-  fun onResult(onResult: (T) -> Unit) {
-    this.onResultFunc = onResult
-  }
+    fun onResult(onResult: (T) -> Unit) {
+        this.onResultFunc = onResult
+    }
 
-  override fun onError(e: Exception?) {
-    onErrorFunc(e ?: Exception())
-  }
+    override fun onError(e: Exception?) {
+        onErrorFunc(e ?: Exception())
+    }
 
-  fun onError(onError: (Throwable) -> Unit) {
-    this.onErrorFunc = onError
-  }
+    fun onError(onError: (Throwable) -> Unit) {
+        this.onErrorFunc = onError
+    }
+}
+
+fun Result.complete(onRunnable: () -> Unit) {
+    try {
+        onRunnable()
+        success()
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <R> Result.call(onConsumer: () -> R) {
+    try {
+        success(onConsumer())
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <T, R> Result.call(arg: T?, onSuccess: (T) -> R) {
+    try {
+        success(onSuccess(arg!!))
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <T> Result.complete(arg: T?, onComplete: (T) -> Unit) {
+    try {
+        onComplete(arg!!)
+        success()
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <T, T2> Result.complete(arg: T?, arg2: T2?, onComplete: (T, T2) -> Unit) {
+    try {
+        onComplete(arg!!, arg2!!)
+        success()
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <T> Result.callTask(task: Task<T>, onSuccess: (T) -> Unit) {
+    try {
+        if (task.isSuccessful) {
+            success(onSuccess(task.result!!))
+        } else {
+            error(task.exception!!)
+        }
+    } catch (e: Throwable) {
+        error(e)
+    }
+}
+
+fun <T> Result.completeTask(task: Task<T>, onSuccess: (T) -> Unit) {
+    try {
+        if (task.isSuccessful) {
+            onSuccess(task.result!!)
+            success()
+        } else {
+            error(task.exception!!)
+        }
+    } catch (e: Throwable) {
+        error(e)
+    }
 }
