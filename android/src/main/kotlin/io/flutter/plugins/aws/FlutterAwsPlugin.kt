@@ -75,7 +75,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
             }
             ON_NEW_TOKEN -> {
                 Log.d(TAG, "onNewToken")
-                result.call(call.argumentsOrNull<String>()) {
+                result.complete(call.argumentsOrNull<String>()) {
                     pinpoint.notificationClient.registerDeviceToken(it)
                 }
             }
@@ -85,7 +85,7 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                 Log.d(TAG, "onMessage: data: $data")
                 Log.d(TAG, "onMessage: notification: $notification")
 
-                result.complete(data, notification) { data, notification ->
+                result.complete(data) { data ->
                     val pushResult = pinpoint.notificationClient.handleCampaignPush(NotificationDetails.builder()
                             //.from(remoteMessage.getFrom()) // TODO
                             .mapData(data)
