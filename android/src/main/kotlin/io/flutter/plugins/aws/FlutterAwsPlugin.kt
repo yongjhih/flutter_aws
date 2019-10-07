@@ -17,6 +17,9 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry.Registrar
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import android.content.Intent
+import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsClient
+import com.amazonaws.mobileconnectors.pinpoint.targeting.TargetingClient
+import com.amazonaws.mobileconnectors.pinpoint.targeting.endpointProfile.EndpointProfileUser
 import com.google.android.gms.tasks.Task
 
 
@@ -38,11 +41,25 @@ class FlutterAwsPlugin(private val registrar: Registrar,
         const val ACTION_PUSH_NOTIFICATION = "push-notification"
 
         const val ON_NEW_TOKEN = "onNewToken"
+        const val REGISTER_DEVICE_TOKEN = "registerDeviceToken"
         const val DATA = "data"
         const val NOTIFICATION = "notification"
         const val ON_MESSAGE = "onMessage"
         const val ENDPOINT_ID = "endpointId"
         const val INITIALIZE = "initialize"
+        const val SET_USER_ID = "setUserId"
+        const val START_SESSION = "startSession"
+        const val STOP_SESSION = "stopSession"
+        const val SUBMIT_EVENTS = "submitEvents"
+        const val RECORD_EVENT = "recordEvent"
+        const val SUBMIT_LOGIN_EVENT = "submitLoginEvent"
+        const val ADD_ATTRIBUTE = "addAttribute"
+
+        const val KEY = "key"
+        const val VALUE = "value"
+
+        const val TYPE_LOGIN_EVENT = "_userauth.sign_in"
+
     }
 
     private val pinpoint: PinpointManager by lazy {
@@ -73,10 +90,63 @@ class FlutterAwsPlugin(private val registrar: Registrar,
                     pinpoint.targetingClient.currentEndpoint().endpointId
                 }
             }
+            REGISTER_DEVICE_TOKEN -> {
+                result.complete(call.argumentsOrNull<String>()) {
+                    pinpoint.notificationClient.registerDeviceToken(it)
+                }
+            }
             ON_NEW_TOKEN -> {
                 Log.d(TAG, "onNewToken")
                 result.complete(call.argumentsOrNull<String>()) {
                     pinpoint.notificationClient.registerDeviceToken(it)
+                }
+            }
+            SET_USER_ID -> {
+                result.call(call.argumentsOrNull<String>()) { id ->
+                    val targetingClient = pinpoint.targetingClient
+                    targetingClient.updateEndpointProfile(targetingClient.currentEndpoint().apply {
+                        user = EndpointProfileUser().apply {
+                            userId = id
+                        }
+                    })
+                    Log.d(TAG, "Assigned user ID ${targetingClient.currentEndpoint().user.userId} to endpoint ${targetingClient.currentEndpoint().endpointId}")
+                }
+            }
+            START_SESSION -> {
+                result.complete {
+                    pinpoint.sessionClient.startSession()
+                }
+            }
+            STOP_SESSION -> {
+                result.complete {
+                    pinpoint.sessionClient.stopSession()
+                }
+            }
+            SUBMIT_EVENTS -> {
+                result.complete {
+                    pinpoint.analyticsClient.submitEvents()
+                }
+            }
+            ADD_ATTRIBUTE -> {
+                result.complete(call.argumentOrNull<String>(KEY), call.argumentOrNull<List<String>>(VALUE)) { key, value ->
+                    pinpoint.targetingClient.updateEndpointProfile {
+                        addAttribute(key, value)
+                    }
+                }
+            }
+            RECORD_EVENT -> {
+                /*
+                result.complete(call.argumentOrNull<Event>()) {
+                    pinpoint.analyticsClient.recordEvent()
+                }
+                */
+                result.notImplemented()
+            }
+            SUBMIT_LOGIN_EVENT -> {
+                result.complete {
+                    pinpoint.analyticsClient.submitEvents {
+                        recordEvent(createEvent(TYPE_LOGIN_EVENT))
+                    }
                 }
             }
             ON_MESSAGE -> {
@@ -116,8 +186,9 @@ class FlutterAwsPlugin(private val registrar: Registrar,
             INITIALIZE -> {
                 Log.d(TAG, "Initializing and registering push notifications token")
                 FirebaseInstanceId.getInstance().instanceId.addOnCompleteListener { task ->
+                    Log.d(TAG, "Registering push notifications token: ${task.result?.token}")
                     result.callTask(task) { instanceId ->
-                        Log.d(TAG, "Registering push notifications token: ${instanceId.token}")
+                        Log.d(TAG, "Registering push notifications token: ${instanceId?.token}")
                         pinpoint.notificationClient.registerDeviceToken(instanceId.token)
                         instanceId.token
                     }
@@ -233,7 +304,7 @@ fun <T, T2> Result.complete(arg: T?, arg2: T2?, onComplete: (T, T2) -> Unit) {
     }
 }
 
-fun <T> Result.callTask(task: Task<T>, onSuccess: (T) -> Unit) {
+fun <T, R> Result.callTask(task: Task<T>, onSuccess: (T) -> R) {
     try {
         if (task.isSuccessful) {
             success(onSuccess(task.result!!))
@@ -245,10 +316,10 @@ fun <T> Result.callTask(task: Task<T>, onSuccess: (T) -> Unit) {
     }
 }
 
-fun <T> Result.completeTask(task: Task<T>, onSuccess: (T) -> Unit) {
+fun <T> Result.completeTask(task: Task<T>, onComplete: (T) -> Unit) {
     try {
         if (task.isSuccessful) {
-            onSuccess(task.result!!)
+            onComplete(task.result!!)
             success()
         } else {
             error(task.exception!!)
@@ -256,4 +327,14 @@ fun <T> Result.completeTask(task: Task<T>, onSuccess: (T) -> Unit) {
     } catch (e: Throwable) {
         error(e)
     }
+}
+
+fun AnalyticsClient.submitEvents(func: AnalyticsClient.() -> Unit) {
+    func()
+    submitEvents()
+}
+
+fun TargetingClient.updateEndpointProfile(func: TargetingClient.() -> Unit) {
+    func()
+    updateEndpointProfile()
 }
