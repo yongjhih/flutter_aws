@@ -21,7 +21,11 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> init() async {
-    await Aws.initialize();
+    try {
+      await Aws.initialize();
+    } catch (err) {
+      print("$err");
+    }
 
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling
