@@ -43,6 +43,7 @@ dependencies {
     super.initState();
 
     Aws.initialize();
+
     final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
     _firebaseMessaging.configure(
       onMessage: (Map<String, dynamic> message) async {
@@ -56,17 +57,21 @@ dependencies {
         Fimber.d("firebaseMessaging: onResume: $message");
       },
     );
+
     _firebaseMessaging.requestNotificationPermissions(
         const IosNotificationSettings(sound: true, badge: true, alert: true));
+
     _firebaseMessaging.onIosSettingsRegistered.listen((IosNotificationSettings settings) {
       Fimber.d("firebaseMessaging: Settings registered: $settings");
     });
+
     _firebaseMessaging.onTokenRefresh.listen((String token) {
       Fimber.d("firebaseMessaging: Settings registered: $token");
-      Aws.onNewToken(token);
+      Aws.registerDeviceToken(token);
     });
     _firebaseMessaging.getToken().then((String token) {
       Fimber.d("firebaseMessaging getToken: $token");
+      Aws.registerDeviceToken(token);
     });
   }
 ```
